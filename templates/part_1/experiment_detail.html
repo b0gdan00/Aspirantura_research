@@ -1,0 +1,423 @@
+{% extends "part_1/base.html" %}
+
+{% block title %}Експеримент: {{ experiment.title }}{% endblock %}
+
+{% block content %}
+  <div class="grid gap-6">
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-3">
+            <h1 class="truncate text-xl font-semibold">{{ experiment.title }}</h1>
+            <span
+              id="statusBadge"
+              class="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700"
+              title="Статус"
+            >
+              {{ experiment.status }}
+            </span>
+          </div>
+          <p class="mt-1 text-sm text-slate-600">
+            {% if experiment.description %}{{ experiment.description }}{% else %}Без опису{% endif %}
+          </p>
+          <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <span class="inline-flex items-center gap-2">
+              <i class="fa-regular fa-calendar"></i>
+              Створено: {{ experiment.created_at|date:"Y-m-d H:i:s" }}
+            </span>
+            <span class="inline-flex items-center gap-2">
+              <i class="fa-solid fa-plug"></i>
+              {{ experiment.serial_port|default:"(port не задано)" }} / {{ experiment.baud_rate }}
+            </span>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <a
+            href="{% url 'experiments_list' %}"
+            class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <i class="fa-solid fa-arrow-left"></i>
+            До списку
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid gap-6 lg:grid-cols-3">
+      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft lg:col-span-2">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div class="text-sm font-semibold">Графік</div>
+            <div class="mt-1 text-xs text-slate-500">Температура та ΔP по часу (секунди)</div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              id="btnAutoRefresh"
+              class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              title="Автооновлення"
+            >
+              <i class="fa-solid fa-rotate"></i>
+              Auto: ON
+            </button>
+            <button
+              type="button"
+              id="btnRefreshNow"
+              class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white shadow-soft hover:bg-brand-700"
+            >
+              <i class="fa-solid fa-arrow-rotate-right"></i>
+              Оновити
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-2xl border border-slate-200 bg-white p-3">
+          <canvas id="chart" class="h-72 w-full"></canvas>
+        </div>
+
+        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs text-slate-500">Останній t, s</div>
+            <div class="mt-1 text-lg font-semibold" id="metricSecond">-</div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs text-slate-500">Температура</div>
+            <div class="mt-1 text-lg font-semibold" id="metricTemp">-</div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs text-slate-500">ΔP</div>
+            <div class="mt-1 text-lg font-semibold" id="metricDP">-</div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+        <div class="text-sm font-semibold">Керування</div>
+        <div class="mt-1 text-xs text-slate-500">Поки що: зміна статусів у БД та UI. Підключення до Arduino додамо наступним кроком.</div>
+
+        <div class="mt-5 grid gap-2">
+          <button
+            type="button"
+            id="btnStartStop"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-soft hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <i class="fa-solid fa-fire"></i>
+            <span id="btnStartStopLabel">Старт / Підпал</span>
+          </button>
+
+          <button
+            type="button"
+            id="btnTestConn"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 border border-slate-200 hover:bg-slate-50"
+          >
+            <i class="fa-solid fa-signal"></i>
+            Тест підключення
+          </button>
+        </div>
+
+        <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div class="flex items-center justify-between">
+            <div class="text-xs font-semibold text-slate-700">Live</div>
+            <div class="text-xs text-slate-500" id="liveHint">Очікування даних...</div>
+          </div>
+          <div class="mt-3 text-xs text-slate-600">
+            Ingest кадрів:
+            <div class="mt-2 rounded-xl bg-white p-3 font-mono text-[11px] text-slate-700 border border-slate-200 overflow-auto">
+              POST /api/experiments/{{ experiment.id }}/frames/batch/
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div
+    id="toast"
+    class="pointer-events-none fixed bottom-6 right-6 hidden max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-soft"
+  >
+    <div class="flex items-start gap-3">
+      <div class="mt-0.5 grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-700">
+        <i class="fa-solid fa-circle-info"></i>
+      </div>
+      <div class="min-w-0">
+        <div class="text-sm font-semibold" id="toastTitle">Повідомлення</div>
+        <div class="mt-1 text-sm text-slate-600" id="toastBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const EXPERIMENT_ID = {{ experiment.id }};
+    const summaryUrl = "{% url 'experiment_summary_api' experiment_id=experiment.id %}";
+    const framesUrl = "{% url 'experiment_frames_api' experiment_id=experiment.id %}";
+    const commandUrl = "{% url 'experiment_command_api' experiment_id=experiment.id %}";
+    const testConnUrl = "{% url 'experiment_test_connection_api' experiment_id=experiment.id %}";
+
+    const chart = document.getElementById("chart");
+    const ctx = chart.getContext("2d");
+
+    const metricSecond = document.getElementById("metricSecond");
+    const metricTemp = document.getElementById("metricTemp");
+    const metricDP = document.getElementById("metricDP");
+    const statusBadge = document.getElementById("statusBadge");
+    const liveHint = document.getElementById("liveHint");
+
+    const btnAutoRefresh = document.getElementById("btnAutoRefresh");
+    const btnRefreshNow = document.getElementById("btnRefreshNow");
+    const btnStartStop = document.getElementById("btnStartStop");
+    const btnStartStopLabel = document.getElementById("btnStartStopLabel");
+    const btnTestConn = document.getElementById("btnTestConn");
+
+    const toast = document.getElementById("toast");
+    const toastTitle = document.getElementById("toastTitle");
+    const toastBody = document.getElementById("toastBody");
+
+    let auto = true;
+    let timer = null;
+    let isRunning = ("{{ experiment.status }}".toLowerCase() === "running");
+
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return null;
+    }
+
+    function setStartStopState(running) {
+      isRunning = !!running;
+      if (isRunning) {
+        btnStartStop.classList.remove("bg-brand-600", "hover:bg-brand-700");
+        btnStartStop.classList.add("bg-rose-600", "hover:bg-rose-700");
+        btnStartStop.querySelector("i").className = "fa-solid fa-stop";
+        btnStartStopLabel.textContent = "Стоп";
+      } else {
+        btnStartStop.classList.remove("bg-rose-600", "hover:bg-rose-700");
+        btnStartStop.classList.add("bg-brand-600", "hover:bg-brand-700");
+        btnStartStop.querySelector("i").className = "fa-solid fa-fire";
+        btnStartStopLabel.textContent = "Старт / Підпал";
+      }
+    }
+
+    function showToast(title, body) {
+      toastTitle.textContent = title;
+      toastBody.textContent = body;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2500);
+    }
+
+    function resizeCanvasToCSS() {
+      const rect = chart.getBoundingClientRect();
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const w = Math.max(320, Math.floor(rect.width));
+      const h = Math.max(240, Math.floor(rect.height));
+      if (chart.width !== Math.floor(w * dpr) || chart.height !== Math.floor(h * dpr)) {
+        chart.width = Math.floor(w * dpr);
+        chart.height = Math.floor(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+    }
+
+    function clearChart() {
+      resizeCanvasToCSS();
+      const rect = chart.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "12px ui-sans-serif, system-ui";
+      ctx.fillText("Немає даних. Очікування кадрів...", 14, 24);
+    }
+
+    function drawChart(frames) {
+      resizeCanvasToCSS();
+      const rect = chart.getBoundingClientRect();
+      const W = rect.width;
+      const H = rect.height;
+      ctx.clearRect(0, 0, W, H);
+
+      if (!frames || frames.length < 2) {
+        clearChart();
+        return;
+      }
+
+      const pad = 36;
+      const plotW = W - pad * 2;
+      const plotH = H - pad * 2;
+
+      const xs = frames.map(f => f.second);
+      const ts = frames.map(f => f.temperature);
+      const ps = frames.map(f => f.dif_pressure);
+
+      const xMin = Math.min(...xs);
+      const xMax = Math.max(...xs);
+
+      const tMin = Math.min(...ts);
+      const tMax = Math.max(...ts);
+
+      const pMin = Math.min(...ps);
+      const pMax = Math.max(...ps);
+
+      const xScale = (x) => pad + (plotW * ((x - xMin) / (xMax - xMin || 1)));
+      const tScale = (y) => pad + (plotH * (1 - ((y - tMin) / (tMax - tMin || 1))));
+      const pScale = (y) => pad + (plotH * (1 - ((y - pMin) / (pMax - pMin || 1))));
+
+      // Grid
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = pad + (plotH * (i / 4));
+        ctx.beginPath();
+        ctx.moveTo(pad, y);
+        ctx.lineTo(pad + plotW, y);
+        ctx.stroke();
+      }
+
+      // Axes
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.beginPath();
+      ctx.moveTo(pad, pad);
+      ctx.lineTo(pad, pad + plotH);
+      ctx.lineTo(pad + plotW, pad + plotH);
+      ctx.stroke();
+
+      // Temp line
+      ctx.strokeStyle = "#0d9488";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      frames.forEach((f, i) => {
+        const x = xScale(f.second);
+        const y = tScale(f.temperature);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Pressure line
+      ctx.strokeStyle = "#f97316";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      frames.forEach((f, i) => {
+        const x = xScale(f.second);
+        const y = pScale(f.dif_pressure);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Legend
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "12px ui-sans-serif, system-ui";
+      ctx.fillText("Temp", pad, 16);
+      ctx.fillStyle = "#0d9488";
+      ctx.fillRect(pad + 42, 8, 10, 10);
+      ctx.fillStyle = "#0f172a";
+      ctx.fillText("ΔP", pad + 62, 16);
+      ctx.fillStyle = "#f97316";
+      ctx.fillRect(pad + 84, 8, 10, 10);
+    }
+
+    async function refresh() {
+      try {
+        const [sumResp, framesResp] = await Promise.all([
+          fetch(summaryUrl, { headers: { "Accept": "application/json" } }),
+          fetch(framesUrl + "?limit=300", { headers: { "Accept": "application/json" } }),
+        ]);
+        const sum = await sumResp.json();
+        const fr = await framesResp.json();
+
+        if (sum.status !== "ok" || fr.status !== "ok") return;
+
+        statusBadge.textContent = sum.experiment.status;
+        setStartStopState((sum.experiment.status || "").toLowerCase() === "running");
+        const last = sum.frames.last;
+        if (last) {
+          metricSecond.textContent = Number(last.second).toFixed(3);
+          metricTemp.textContent = Number(last.temperature).toFixed(3);
+          metricDP.textContent = Number(last.dif_pressure).toFixed(6);
+          liveHint.textContent = `Кадрів: ${sum.frames.count}`;
+        } else {
+          metricSecond.textContent = "-";
+          metricTemp.textContent = "-";
+          metricDP.textContent = "-";
+          liveHint.textContent = "Очікування даних...";
+        }
+
+        drawChart(fr.frames);
+      } catch (e) {
+        // ignore transient network errors in UI-only mode
+      }
+    }
+
+    function setAuto(on) {
+      auto = on;
+      btnAutoRefresh.innerHTML = `<i class="fa-solid fa-rotate"></i> Auto: ${auto ? "ON" : "OFF"}`;
+      if (timer) clearInterval(timer);
+      timer = auto ? setInterval(refresh, 1500) : null;
+    }
+
+    btnAutoRefresh.addEventListener("click", () => setAuto(!auto));
+    btnRefreshNow.addEventListener("click", refresh);
+    btnStartStop.addEventListener("click", async () => {
+      const cmd = isRunning ? "stop" : "start";
+      const csrf = getCookie("csrftoken");
+      btnStartStop.disabled = true;
+      try {
+        const resp = await fetch(commandUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            ...(csrf ? { "X-CSRFToken": csrf } : {}),
+          },
+          body: JSON.stringify({ command: cmd }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data.confirmed) {
+          showToast("Команда підтверджена", cmd === "start" ? "Arduino: OK START" : "Arduino: OK STOP");
+          await refresh();
+        } else {
+          showToast("Немає підтвердження", (data && data.error) ? data.error : "Команда не підтверджена Arduino.");
+        }
+      } catch (e) {
+        showToast("Помилка", "Не вдалося відправити команду.");
+      } finally {
+        btnStartStop.disabled = false;
+      }
+    });
+
+    btnTestConn.addEventListener("click", async () => {
+      const csrf = getCookie("csrftoken");
+      btnTestConn.disabled = true;
+      try {
+        const resp = await fetch(testConnUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            ...(csrf ? { "X-CSRFToken": csrf } : {}),
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data.confirmed) {
+          showToast("Підключення OK", "Arduino підтвердив відповідь.");
+        } else {
+          showToast("Підключення FAIL", (data && data.error) ? data.error : "Немає підтвердження Arduino.");
+        }
+      } catch (e) {
+        showToast("Помилка", "Не вдалося виконати тест.");
+      } finally {
+        btnTestConn.disabled = false;
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      // Redraw with latest cached frames by pulling again (cheap enough here).
+      refresh();
+    });
+
+    clearChart();
+    setStartStopState(isRunning);
+    setAuto(true);
+    refresh();
+  </script>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "part_1/base.html" %}
+
+{% block title %}Новий експеримент{% endblock %}
+
+{% block content %}
+  <div class="grid gap-6">
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 class="text-xl font-semibold">Реєстрація експерименту</h1>
+          <p class="mt-1 text-sm text-slate-600">
+            Заповніть метадані. Після створення відкриється сторінка з графіком та кнопками керування.
+          </p>
+        </div>
+        <a
+          href="{% url 'experiments_list' %}"
+          class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          <i class="fa-solid fa-arrow-left"></i>
+          Назад
+        </a>
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+      <form method="post" class="grid gap-6">
+        {% csrf_token %}
+
+        <div class="grid gap-2">
+          <label class="text-sm font-semibold text-slate-800" for="{{ form.title.id_for_label }}">Назва</label>
+          <input
+            id="{{ form.title.id_for_label }}"
+            name="{{ form.title.html_name }}"
+            value="{{ form.title.value|default_if_none:'' }}"
+            type="text"
+            class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-200"
+            placeholder="{{ form.title.field.widget.attrs.placeholder }}"
+            required
+          />
+          {% if form.title.errors %}
+            <div class="text-sm text-rose-700">{{ form.title.errors|striptags }}</div>
+          {% endif %}
+        </div>
+
+        <div class="grid gap-2">
+          <label class="text-sm font-semibold text-slate-800" for="{{ form.description.id_for_label }}">Опис</label>
+          <textarea
+            id="{{ form.description.id_for_label }}"
+            name="{{ form.description.html_name }}"
+            rows="4"
+            class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-200"
+            placeholder="{{ form.description.field.widget.attrs.placeholder }}"
+          >{{ form.description.value|default_if_none:'' }}</textarea>
+          {% if form.description.errors %}
+            <div class="text-sm text-rose-700">{{ form.description.errors|striptags }}</div>
+          {% endif %}
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="grid gap-2">
+            <label class="text-sm font-semibold text-slate-800" for="{{ form.serial_port.id_for_label }}">Serial port</label>
+            <input
+              id="{{ form.serial_port.id_for_label }}"
+              name="{{ form.serial_port.html_name }}"
+              value="{{ form.serial_port.value|default_if_none:'' }}"
+              type="text"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-200"
+              placeholder="{{ form.serial_port.field.widget.attrs.placeholder }}"
+            />
+            {% if form.serial_port.errors %}
+              <div class="text-sm text-rose-700">{{ form.serial_port.errors|striptags }}</div>
+            {% endif %}
+          </div>
+
+          <div class="grid gap-2">
+            <label class="text-sm font-semibold text-slate-800" for="{{ form.baud_rate.id_for_label }}">Baud rate</label>
+            <input
+              id="{{ form.baud_rate.id_for_label }}"
+              name="{{ form.baud_rate.html_name }}"
+              value="{{ form.baud_rate.value|default_if_none:'' }}"
+              type="number"
+              min="1"
+              step="1"
+              class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-200"
+            />
+            {% if form.baud_rate.errors %}
+              <div class="text-sm text-rose-700">{{ form.baud_rate.errors|striptags }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-6">
+          <div class="text-xs text-slate-500">
+            Після створення можна буде натиснути “Старт/Підпал” і почати прийом кадрів через API.
+          </div>
+          <button
+            type="submit"
+            class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-soft hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300"
+          >
+            <i class="fa-solid fa-check"></i>
+            Створити
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+{% endblock %}
+

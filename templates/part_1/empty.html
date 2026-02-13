@@ -1,0 +1,41 @@
+{% load static %}
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Порожня сторінка</title>
+    <!-- Tailwind + FontAwesome -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+  </head>
+  <body>
+    <main class="mx-auto max-w-3xl px-4 py-16">
+      <div class="rounded-2xl border border-slate-200 bg-white p-8 shadow">
+        <div class="flex items-start gap-4">
+          <div class="grid h-12 w-12 place-items-center rounded-2xl bg-slate-50 text-slate-700">
+            <i class="fa-solid fa-flask"></i>
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-xl font-semibold">Порожня сторінка</h1>
+            <p class="mt-1 text-sm text-slate-600">
+              Тут була стартова заглушка. Тепер головна сторінка веде на список експериментів.
+            </p>
+            <div class="mt-5">
+              <a
+                href="/experiments/"
+                class="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+              >
+                <i class="fa-solid fa-arrow-right"></i>
+                Перейти до експериментів
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
