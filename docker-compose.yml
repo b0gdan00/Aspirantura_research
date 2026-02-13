@@ -3,7 +3,8 @@ services:
     build: .
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     volumes:
-      - .:/app
-    environment:
-      - DJANGO_SETTINGS_MODULE=asp_experiment.settings
+      - ./data:/app/data
+    restart: unless-stopped
