@@ -10,3 +10,5 @@ venv/
 *.egg-info/
 staticfiles/
 data/
+cloudflared/*.json
+cloudflared/*.pem
