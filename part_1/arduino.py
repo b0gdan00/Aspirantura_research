@@ -24,6 +24,7 @@ def send_command_and_wait_ack(
     baud_rate: int,
     command: str,
     timeout_s: float = 2.0,
+    startup_delay_s: float = 1.8,
     write_line_ending: str = "\n",
 ) -> ArduinoResult:
     """
@@ -45,15 +46,19 @@ def send_command_and_wait_ack(
     if not port:
         return ArduinoResult(ok=False, confirmed=False, response_lines=[], error="Serial port is empty.")
 
-    start = time.monotonic()
     lines: list[str] = []
 
     try:
         with serial.Serial(port=port, baudrate=baud_rate, timeout=0.1) as ser:
+            # Many Arduino boards reset when the port is opened. Give them time to boot,
+            # otherwise the first command is often missed.
+            if startup_delay_s > 0:
+                time.sleep(startup_delay_s)
             ser.reset_input_buffer()
             ser.write((command + write_line_ending).encode("utf-8", errors="replace"))
             ser.flush()
 
+            start = time.monotonic()
             while time.monotonic() - start < timeout_s:
                 raw = ser.readline()
                 if not raw:

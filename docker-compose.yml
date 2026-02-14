@@ -2,22 +2,31 @@ services:
   web:
     build: .
     ports:
-      # Local-only bind (Cloudflare Tunnel accesses the service over the Docker network).
-      # If you need LAN access, change to "8000:8000".
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
     env_file:
       - .env
     volumes:
       - ./data:/app/data
     restart: unless-stopped
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
+  # Optional Raspberry Pi collector (serial -> API ingest).
+  # Enable with: docker compose --profile collector up -d --build
+  collector:
+    build: .
+    profiles: ["collector"]
     depends_on:
       - web
-    # Remotely-managed tunnel: configure hostname + service in Cloudflare Zero Trust UI.
-    # Service URL should point to the Django container, e.g. http://web:8000
-    command: tunnel --no-autoupdate run
+    # Override image ENTRYPOINT (which runs migrations) for the collector.
+    entrypoint: ["python", "scripts/pi_collector.py"]
     environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
+      - EXPERIMENT_ID=${EXPERIMENT_ID}
+      - SERVER_BASE_URL=http://web:8000
+      # If SERIAL_PORT is empty, collector will try to read it from the experiment summary API.
+      - SERIAL_PORT=${SERIAL_PORT}
+      - BAUD_RATE=${BAUD_RATE:-115200}
+      - POLL_HZ=${POLL_HZ:-20}
+      - BATCH_SIZE=${BATCH_SIZE:-20}
+    # On Raspberry Pi map your Arduino device, e.g. /dev/ttyUSB0 or /dev/ttyACM0
+    # devices:
+    #   - "/dev/ttyUSB0:/dev/ttyUSB0"
     restart: unless-stopped

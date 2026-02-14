@@ -10,27 +10,9 @@
 docker compose up -d --build
 ```
 
-Сервіс слухає `:8000`. На проді зазвичай ставлять nginx/Traefik/Cloudflare Tunnel перед ним.
+Сервіс слухає `:8000`. На проді зазвичай ставлять nginx/Traefik перед ним.
 
 Під час старту контейнер автоматично виконує `migrate` + `collectstatic`.
-
-## Cloudflare Tunnel (cloudflared) на Raspberry Pi
-Цей репозиторій вже містить `docker-compose.yml` з сервісом `cloudflared`.
-
-1. У Cloudflare Zero Trust (Dashboard) створи тунель: `Networks -> Tunnels -> Create tunnel` і вибери варіант Docker.
-2. Скопіюй `TUNNEL_TOKEN` і додай в `.env`:
-   - `TUNNEL_TOKEN=...`
-3. Додай Public Hostname для тунеля і вкажи service/origin URL:
-   - `http://web:8000`
-4. В `.env` вистав домен для Django:
-   - `DJANGO_ALLOWED_HOSTS=yourdomain.com`
-   - `DJANGO_CSRF_TRUSTED_ORIGINS=https://yourdomain.com`
-5. За потреби (якщо хочеш форсити HTTPS на рівні Django):
-   - `DJANGO_SECURE_SSL_REDIRECT=1`
-   - `DJANGO_SESSION_COOKIE_SECURE=1`
-   - `DJANGO_CSRF_COOKIE_SECURE=1`
-
-Примітка: в `docker-compose.yml` порт `8000` за замовчуванням проброшений тільки на `127.0.0.1`, щоб не світити сервіс у LAN/Internet.
 
 ## Адмін (superuser)
 ```sh
@@ -47,4 +29,24 @@ services:
   web:
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
+```
+
+## Arduino sketch (Serial protocol)
+Скетч для Arduino лежить в `arduino/asp_experiment_controller/asp_experiment_controller.ino`.
+Він підтримує команди: `PING`, `START`, `STOP`, `READ_ALL` (див. коментарі в скетчі).
+
+## Raspberry Pi collector (максимальна частота опитування)
+Щоб не відкривати Serial-порт на кожен запит (це повільно), телеметрію краще збирати окремим процесом.
+У репозиторії є скрипт `scripts/pi_collector.py`, який:
+- тримає Serial відкритим
+- опитує Arduino командою `READ_ALL` з частотою `POLL_HZ`
+- відправляє кадри batch'ами на `/api/experiments/<id>/frames/batch/`
+
+Варіант через Docker Compose:
+1. Заповни в `.env` (або задай змінні оточення):
+   - `EXPERIMENT_ID=...`
+   - `SERIAL_PORT=/dev/ttyUSB0` (або задай serial_port у UI; тоді можна не вказувати тут)
+2. Запусти web + collector:
+```sh
+docker compose --profile collector up -d --build
 ```
