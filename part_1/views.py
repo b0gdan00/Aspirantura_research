@@ -8,7 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 
-from .arduino import send_command_and_wait_ack
+from .telemetry import ensure_poller_running, get_session, stop_poller
 from .forms import ExperimentCreateForm
 from .models import Experiment, Frame
 
@@ -60,6 +60,7 @@ def experiment_action(request, experiment_id: int):
             experiment.started_at = now
         experiment.status = Experiment.Status.RUNNING
         experiment.save()
+        ensure_poller_running(experiment)
         return redirect("experiment_detail", experiment_id=experiment.id)
 
     if action == "ignite":
@@ -69,6 +70,7 @@ def experiment_action(request, experiment_id: int):
             experiment.started_at = now
         experiment.status = Experiment.Status.RUNNING
         experiment.save()
+        ensure_poller_running(experiment)
         return redirect("experiment_detail", experiment_id=experiment.id)
 
     if action == "finish":
@@ -76,6 +78,7 @@ def experiment_action(request, experiment_id: int):
             experiment.ended_at = now
         experiment.status = Experiment.Status.FINISHED
         experiment.save()
+        stop_poller(experiment.id)
         return redirect("experiment_detail", experiment_id=experiment.id)
 
     if action == "abort":
@@ -83,6 +86,7 @@ def experiment_action(request, experiment_id: int):
             experiment.ended_at = now
         experiment.status = Experiment.Status.ABORTED
         experiment.save()
+        stop_poller(experiment.id)
         return redirect("experiment_detail", experiment_id=experiment.id)
 
     return JsonResponse({"status": "error", "error": "Unknown action."}, status=400)
@@ -177,12 +181,8 @@ def experiment_command_api(request, experiment_id: int):
     wire_cmd = "START" if cmd == "start" else "STOP"
 
     with _serial_lock:
-        res = send_command_and_wait_ack(
-            port=experiment.serial_port,
-            baud_rate=experiment.baud_rate,
-            command=wire_cmd,
-            timeout_s=2.5,
-        )
+        sess = get_session(port=experiment.serial_port, baud_rate=experiment.baud_rate)
+        res = sess.request_one_line(command=wire_cmd, timeout_s=2.5)
 
     if not (res.ok and res.confirmed):
         return JsonResponse(
@@ -204,11 +204,13 @@ def experiment_command_api(request, experiment_id: int):
             experiment.ignited_at = now
         experiment.status = Experiment.Status.RUNNING
         experiment.save()
+        ensure_poller_running(experiment)
     else:
         if experiment.ended_at is None:
             experiment.ended_at = now
         experiment.status = Experiment.Status.ABORTED
         experiment.save()
+        stop_poller(experiment.id)
 
     return JsonResponse(
         {
@@ -232,12 +234,8 @@ def experiment_test_connection_api(request, experiment_id: int):
         )
 
     with _serial_lock:
-        res = send_command_and_wait_ack(
-            port=experiment.serial_port,
-            baud_rate=experiment.baud_rate,
-            command="PING",
-            timeout_s=1.5,
-        )
+        sess = get_session(port=experiment.serial_port, baud_rate=experiment.baud_rate)
+        res = sess.request_one_line(command="PING", timeout_s=1.5)
 
     if not (res.ok and res.confirmed):
         return JsonResponse(

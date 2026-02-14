@@ -57,7 +57,7 @@ def _http_json(method: str, url: str, payload: dict | None = None, timeout_s: fl
 
 
 def _parse_read_all(line: str) -> dict | None:
-    # Expected: "OK DATA <t_ms> <rpm> <pressure_kpa> <temp_c> <mosfet>"
+    # Expected: "OK DATA <t_ms> <rpm> <pressure_pa> <temp_c> <mosfet>"
     parts = line.strip().split()
     if len(parts) < 7:
         return None
@@ -67,7 +67,7 @@ def _parse_read_all(line: str) -> dict | None:
     try:
         t_ms = float(parts[2])
         rpm = float(parts[3])
-        pressure_kpa = float(parts[4])
+        pressure_pa = float(parts[4])
         temp_c = float(parts[5])
         mosfet = int(parts[6])
     except ValueError:
@@ -76,7 +76,7 @@ def _parse_read_all(line: str) -> dict | None:
     return {
         "t_s": t_ms / 1000.0,
         "rpm": rpm,
-        "pressure_kpa": pressure_kpa,
+        "pressure_pa": pressure_pa,
         "temp_c": temp_c,
         "mosfet": mosfet,
     }
@@ -161,7 +161,7 @@ def main() -> int:
                     {
                         "second": parsed["t_s"],
                         "temperature": parsed["temp_c"],
-                        "dif_pressure": parsed["pressure_kpa"],
+                        "dif_pressure": parsed["pressure_pa"],
                     }
                 )
 

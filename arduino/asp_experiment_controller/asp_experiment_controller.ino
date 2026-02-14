@@ -19,8 +19,8 @@
 // - START         -> "OK START"
 // - STOP          -> "OK STOP"
 // - READ_RPM      -> "OK RPM <t_ms> <rpm>"
-// - READ_PT       -> "OK PT  <t_ms> <pressure_kpa> <temp_c>"
-// - READ_ALL      -> "OK DATA <t_ms> <rpm> <pressure_kpa> <temp_c> <mosfet>"
+// - READ_PT       -> "OK PT  <t_ms> <pressure_pa> <temp_c>"
+// - READ_ALL      -> "OK DATA <t_ms> <rpm> <pressure_pa> <temp_c> <mosfet>"
 // Unknown         -> "ERR UNKNOWN"
 //
 // Notes:
@@ -36,15 +36,19 @@ const unsigned long MOSFET_ON_TIME_MS = 5000;  // ON duration
 // --- Hall sensor (tachometer) ---
 const byte HALL_PIN = 3;
 const byte PULSES_PER_REV = 2;
+const unsigned long RPM_INTERVAL_MS = 1000;
 
 // --- MPX5010DP differential pressure sensor ---
 const byte PRESSURE_PIN = A0;
 const float ADC_REF_VOLTAGE = 5.0;
+const unsigned long PRESSURE_INTERVAL_MS = 50;
 
 // --- K-type thermocouple via MAX6675 ---
 const byte TC_SO  = 4;
 const byte TC_CS  = 5;
 const byte TC_SCK = 6;
+// MAX6675 updates internally roughly every ~220ms; reading too fast often returns stale values.
+const unsigned long TC_INTERVAL_MS = 250;
 
 MAX6675 thermocouple(TC_SCK, TC_CS, TC_SO);
 
@@ -53,13 +57,15 @@ volatile unsigned long hallPulseCount = 0;
 volatile unsigned long lastPulseMicros = 0;
 
 // For computing RPM on demand
-unsigned long lastRpmComputeMicros = 0;
+unsigned long lastRPMTime = 0;
 unsigned long lastPulseSnapshot = 0;
 unsigned long currentRPM = 0;
 
 // Physical values (updated on demand)
-float pressureKPa = 0.0;
+float pressurePa = 0.0;
 float temperatureC = 0.0;
+unsigned long lastPressureTime = 0;
+unsigned long lastThermoTime = 0;
 
 // Experiment timing
 unsigned long experimentT0 = 0; // millis()
@@ -89,49 +95,42 @@ void initTachometer() {
 }
 
 void updateRPMOnDemand() {
-  unsigned long now = micros();
-  if (lastRpmComputeMicros == 0) {
-    lastRpmComputeMicros = now;
-    noInterrupts();
-    lastPulseSnapshot = hallPulseCount;
-    interrupts();
-    currentRPM = 0;
-    return;
-  }
+  // Keep original "windowed" tachometer behaviour: compute RPM once per interval.
+  unsigned long now = millis();
+  if (now - lastRPMTime < RPM_INTERVAL_MS) return;
 
   unsigned long pulses;
   noInterrupts();
   pulses = hallPulseCount;
   interrupts();
 
-  unsigned long deltaPulses = pulses - lastPulseSnapshot;
-  unsigned long deltaMicros = now - lastRpmComputeMicros;
-
+  unsigned long delta = pulses - lastPulseSnapshot;
   lastPulseSnapshot = pulses;
-  lastRpmComputeMicros = now;
 
-  if (deltaMicros == 0) {
-    currentRPM = 0;
-    return;
-  }
-
-  // rpm = (deltaPulses / PULSES_PER_REV) / (deltaMicros / 60e6)
-  //     = deltaPulses * 60e6 / (PULSES_PER_REV * deltaMicros)
-  unsigned long long num = (unsigned long long)deltaPulses * 60000000ULL;
-  unsigned long long den = (unsigned long long)PULSES_PER_REV * (unsigned long long)deltaMicros;
-  currentRPM = den ? (unsigned long)(num / den) : 0;
+  // delta pulses in RPM_INTERVAL_MS => rpm = (delta / PPR) * (60000 / interval_ms)
+  currentRPM = (unsigned long)((delta * 60000UL) / (unsigned long)PULSES_PER_REV / RPM_INTERVAL_MS);
+  lastRPMTime = now;
 }
 
 void updatePressureOnDemand() {
+  unsigned long now = millis();
+  if (now - lastPressureTime < PRESSURE_INTERVAL_MS) return;
+  lastPressureTime = now;
+
   int raw = analogRead(PRESSURE_PIN);
-  float voltage = raw * (ADC_REF_VOLTAGE / 1023.0);
-  // From your original calibration:
-  // pressureKPa = (voltage - 0.14) * (10.0 / 4.7)
-  pressureKPa = (voltage - 0.14f) * (10.0f / 4.7f);
+  float voltage = raw * (ADC_REF_VOLTAGE / 1023.0f);
+
+  // Keep your original working calibration, but output in Pascals:
+  // kPa = (voltage - 0.14) * (10.0 / 4.7)
+  float pressureKPa = (voltage - 0.14f) * (10.0f / 4.7f);
   if (pressureKPa < 0) pressureKPa = 0;
+  pressurePa = pressureKPa * 1000.0f;
 }
 
 void updateThermocoupleOnDemand() {
+  unsigned long now = millis();
+  if (now - lastThermoTime < TC_INTERVAL_MS) return;
+  lastThermoTime = now;
   temperatureC = thermocouple.readCelsius();
 }
 
@@ -145,8 +144,13 @@ void armExperiment() {
   mosfetArmed = true;
   mosfetDone = false;
   forceMosfetOff();
-  // Reset RPM computation baseline for a clean start
-  lastRpmComputeMicros = 0;
+  // Reset tachometer window baseline for a clean start
+  noInterrupts();
+  hallPulseCount = 0;
+  interrupts();
+  lastPulseSnapshot = 0;
+  currentRPM = 0;
+  lastRPMTime = millis();
 }
 
 void stopExperiment() {
@@ -227,7 +231,7 @@ void handleCommand(const char *cmd) {
     Serial.print("OK PT ");
     Serial.print(tMs());
     Serial.print(" ");
-    Serial.print(pressureKPa, 3);
+    Serial.print(pressurePa, 1);
     Serial.print(" ");
     Serial.println(temperatureC, 3);
     return;
@@ -242,7 +246,7 @@ void handleCommand(const char *cmd) {
     Serial.print(" ");
     Serial.print(currentRPM);
     Serial.print(" ");
-    Serial.print(pressureKPa, 3);
+    Serial.print(pressurePa, 1);
     Serial.print(" ");
     Serial.print(temperatureC, 3);
     Serial.print(" ");
@@ -285,11 +289,18 @@ void setup() {
 
   // Default time base: "since boot" until START is received.
   experimentT0 = 0;
+  lastRPMTime = 0;
+  lastPressureTime = 0;
+  lastThermoTime = 0;
 
   printOk("READY");
 }
 
 void loop() {
   pumpSerial();
+  // Maintain fresh cached sensor values for the next READ_* request.
+  updateRPMOnDemand();
+  updatePressureOnDemand();
+  updateThermocoupleOnDemand();
   updateMosfet();
 }

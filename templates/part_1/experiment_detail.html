@@ -82,11 +82,11 @@
             <div class="mt-1 text-lg font-semibold" id="metricSecond">-</div>
           </div>
           <div class="rounded-2xl border border-slate-200 bg-white p-4">
-            <div class="text-xs text-slate-500">Температура</div>
+            <div class="text-xs text-slate-500">Температура, °C</div>
             <div class="mt-1 text-lg font-semibold" id="metricTemp">-</div>
           </div>
           <div class="rounded-2xl border border-slate-200 bg-white p-4">
-            <div class="text-xs text-slate-500">ΔP</div>
+            <div class="text-xs text-slate-500">ΔP, Pa</div>
             <div class="mt-1 text-lg font-semibold" id="metricDP">-</div>
           </div>
         </div>
@@ -331,8 +331,8 @@
         const last = sum.frames.last;
         if (last) {
           metricSecond.textContent = Number(last.second).toFixed(3);
-          metricTemp.textContent = Number(last.temperature).toFixed(3);
-          metricDP.textContent = Number(last.dif_pressure).toFixed(6);
+          metricTemp.textContent = Number(last.temperature).toFixed(2);
+          metricDP.textContent = Number(last.dif_pressure).toFixed(1);
           liveHint.textContent = `Кадрів: ${sum.frames.count}`;
         } else {
           metricSecond.textContent = "-";
