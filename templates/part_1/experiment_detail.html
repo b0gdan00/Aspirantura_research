@@ -49,7 +49,7 @@
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div class="text-sm font-semibold">Графік</div>
-            <div class="mt-1 text-xs text-slate-500">Температура та ΔP по часу (секунди)</div>
+            <div class="mt-1 text-xs text-slate-500">Температура, ΔP та RPM по часу (секунди)</div>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <button
@@ -76,7 +76,7 @@
           <canvas id="chart" class="h-72 w-full"></canvas>
         </div>
 
-        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+        <div class="mt-4 grid gap-3 sm:grid-cols-4">
           <div class="rounded-2xl border border-slate-200 bg-white p-4">
             <div class="text-xs text-slate-500">Останній t, s</div>
             <div class="mt-1 text-lg font-semibold" id="metricSecond">-</div>
@@ -88,6 +88,10 @@
           <div class="rounded-2xl border border-slate-200 bg-white p-4">
             <div class="text-xs text-slate-500">ΔP, Pa</div>
             <div class="mt-1 text-lg font-semibold" id="metricDP">-</div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="text-xs text-slate-500">RPM</div>
+            <div class="mt-1 text-lg font-semibold" id="metricRPM">-</div>
           </div>
         </div>
       </section>
@@ -160,6 +164,7 @@
     const metricSecond = document.getElementById("metricSecond");
     const metricTemp = document.getElementById("metricTemp");
     const metricDP = document.getElementById("metricDP");
+    const metricRPM = document.getElementById("metricRPM");
     const statusBadge = document.getElementById("statusBadge");
     const liveHint = document.getElementById("liveHint");
 
@@ -246,6 +251,7 @@
       const xs = frames.map(f => f.second);
       const ts = frames.map(f => f.temperature);
       const ps = frames.map(f => f.dif_pressure);
+      const rs = frames.map(f => f.rpm || 0);
 
       const xMin = Math.min(...xs);
       const xMax = Math.max(...xs);
@@ -256,9 +262,13 @@
       const pMin = Math.min(...ps);
       const pMax = Math.max(...ps);
 
+      const rMin = Math.min(...rs);
+      const rMax = Math.max(...rs);
+
       const xScale = (x) => pad + (plotW * ((x - xMin) / (xMax - xMin || 1)));
       const tScale = (y) => pad + (plotH * (1 - ((y - tMin) / (tMax - tMin || 1))));
       const pScale = (y) => pad + (plotH * (1 - ((y - pMin) / (pMax - pMin || 1))));
+      const rScale = (y) => pad + (plotH * (1 - ((y - rMin) / (rMax - rMin || 1))));
 
       // Grid
       ctx.strokeStyle = "#e2e8f0";
@@ -303,6 +313,18 @@
       });
       ctx.stroke();
 
+      // RPM line
+      ctx.strokeStyle = "#3b82f6";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      frames.forEach((f, i) => {
+        const x = xScale(f.second);
+        const y = rScale(f.rpm || 0);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
       // Legend
       ctx.fillStyle = "#0f172a";
       ctx.font = "12px ui-sans-serif, system-ui";
@@ -313,6 +335,10 @@
       ctx.fillText("ΔP", pad + 62, 16);
       ctx.fillStyle = "#f97316";
       ctx.fillRect(pad + 84, 8, 10, 10);
+      ctx.fillStyle = "#0f172a";
+      ctx.fillText("RPM", pad + 104, 16);
+      ctx.fillStyle = "#3b82f6";
+      ctx.fillRect(pad + 134, 8, 10, 10);
     }
 
     async function refresh() {
@@ -333,11 +359,13 @@
           metricSecond.textContent = Number(last.second).toFixed(3);
           metricTemp.textContent = Number(last.temperature).toFixed(2);
           metricDP.textContent = Number(last.dif_pressure).toFixed(1);
+          metricRPM.textContent = Number(last.rpm || 0).toFixed(0);
           liveHint.textContent = `Кадрів: ${sum.frames.count}`;
         } else {
           metricSecond.textContent = "-";
           metricTemp.textContent = "-";
           metricDP.textContent = "-";
+          metricRPM.textContent = "-";
           liveHint.textContent = "Очікування даних...";
         }
 

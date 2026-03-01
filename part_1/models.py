@@ -79,6 +79,9 @@ class Frame(models.Model):
     # Диференціальний тиск (pressure delta; одиниці визначаються контрактом даних/пристроєм).
     dif_pressure = models.FloatField()
 
+    # Обороти двигуна (RPM), з тахометра (датчик Холла).
+    rpm = models.FloatField(default=0)
+
     received_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:
@@ -129,6 +132,7 @@ class Frame(models.Model):
                     second=float(item["second"]),
                     temperature=float(item["temperature"]),
                     dif_pressure=float(item["dif_pressure"]),
+                    rpm=float(item.get("rpm", 0)),
                 )
             except (TypeError, ValueError):
                 raise ValueError(
@@ -141,4 +145,4 @@ class Frame(models.Model):
 
     def __str__(self):
         # Людиночитний рядок для адмінки/логів.
-        return f"Second: {self.second}, Temperature: {self.temperature}, Dif Pressure: {self.dif_pressure}"
+        return f"Second: {self.second}, Temperature: {self.temperature}, Dif Pressure: {self.dif_pressure}, RPM: {self.rpm}"

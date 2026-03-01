@@ -167,6 +167,7 @@ class ExperimentPoller:
                             second=sample.t_s,
                             temperature=sample.temperature_c,
                             dif_pressure=sample.pressure_pa,
+                            rpm=sample.rpm,
                         )
                     )
 

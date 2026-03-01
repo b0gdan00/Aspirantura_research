@@ -122,6 +122,7 @@ def experiment_summary_api(request, experiment_id: int):
                         "second": last.second,
                         "temperature": last.temperature,
                         "dif_pressure": last.dif_pressure,
+                        "rpm": last.rpm,
                         "received_at": last.received_at.isoformat() if last.received_at else None,
                     }
                     if last
@@ -144,7 +145,7 @@ def experiment_frames_api(request, experiment_id: int):
     frames = list(
         Frame.objects.filter(experiment=experiment)
         .order_by("-second", "-id")[:limit]
-        .values("second", "temperature", "dif_pressure")
+        .values("second", "temperature", "dif_pressure", "rpm")
     )
     frames.reverse()
 
