@@ -1,5 +1,5 @@
-#include <max6675.h>
 #include <ctype.h>
+#include <max6675.h>
 
 // =========================================================
 // asp_experiment_controller
@@ -25,29 +25,37 @@
 //
 // Notes:
 // - The Arduino does NOT stream by itself; it responds to requests.
-// - t_ms is milliseconds since last START (or since boot if START never happened).
+// - t_ms is milliseconds since last START (or since boot if START never
+// happened).
 // =========================================================
 
 // --- MOSFET (igniter / load) ---
 const byte MOSFET_PIN = 8;
-const unsigned long MOSFET_DELAY_MS   = 10000; // Delay before turning ON after START
-const unsigned long MOSFET_ON_TIME_MS = 5000;  // ON duration
+const unsigned long MOSFET_DELAY_MS =
+    10000; // Delay before turning ON after START
+const unsigned long MOSFET_ON_TIME_MS = 5000; // ON duration
 
 // --- Hall sensor (tachometer) ---
 const byte HALL_PIN = 3;
 const byte PULSES_PER_REV = 2;
-const unsigned long RPM_INTERVAL_MS = 1000;
+const unsigned long RPM_INTERVAL_MS = 500;
 
 // --- MPX5010DP differential pressure sensor ---
 const byte PRESSURE_PIN = A0;
 const float ADC_REF_VOLTAGE = 5.0;
 const unsigned long PRESSURE_INTERVAL_MS = 50;
 
+// --- Pressure calibration (auto-zero at startup) ---
+const int CALIB_SAMPLES = 50;
+const unsigned long CALIB_DELAY_US = 2000; // 2 ms between calibration samples
+float pressureZeroVoltage = 0.14f;         // will be overwritten by calibration
+
 // --- K-type thermocouple via MAX6675 ---
-const byte TC_SO  = 4;
-const byte TC_CS  = 5;
+const byte TC_SO = 4;
+const byte TC_CS = 5;
 const byte TC_SCK = 6;
-// MAX6675 updates internally roughly every ~220ms; reading too fast often returns stale values.
+// MAX6675 updates internally roughly every ~220ms; reading too fast often
+// returns stale values.
 const unsigned long TC_INTERVAL_MS = 250;
 
 MAX6675 thermocouple(TC_SCK, TC_CS, TC_SO);
@@ -95,9 +103,11 @@ void initTachometer() {
 }
 
 void updateRPMOnDemand() {
-  // Keep original "windowed" tachometer behaviour: compute RPM once per interval.
+  // Keep original "windowed" tachometer behaviour: compute RPM once per
+  // interval.
   unsigned long now = millis();
-  if (now - lastRPMTime < RPM_INTERVAL_MS) return;
+  if (now - lastRPMTime < RPM_INTERVAL_MS)
+    return;
 
   unsigned long pulses;
   noInterrupts();
@@ -107,29 +117,45 @@ void updateRPMOnDemand() {
   unsigned long delta = pulses - lastPulseSnapshot;
   lastPulseSnapshot = pulses;
 
-  // delta pulses in RPM_INTERVAL_MS => rpm = (delta / PPR) * (60000 / interval_ms)
-  currentRPM = (unsigned long)((delta * 60000UL) / (unsigned long)PULSES_PER_REV / RPM_INTERVAL_MS);
+  // delta pulses in RPM_INTERVAL_MS => rpm = (delta / PPR) * (60000 /
+  // interval_ms)
+  currentRPM = (unsigned long)((delta * 60000UL) /
+                               (unsigned long)PULSES_PER_REV / RPM_INTERVAL_MS);
   lastRPMTime = now;
+}
+
+void calibratePressureSensor() {
+  // Read the sensor N times and average to find the zero-pressure voltage.
+  long sum = 0;
+  for (int i = 0; i < CALIB_SAMPLES; i++) {
+    sum += analogRead(PRESSURE_PIN);
+    delayMicroseconds(CALIB_DELAY_US);
+  }
+  float avgRaw = (float)sum / (float)CALIB_SAMPLES;
+  pressureZeroVoltage = avgRaw * (ADC_REF_VOLTAGE / 1023.0f);
 }
 
 void updatePressureOnDemand() {
   unsigned long now = millis();
-  if (now - lastPressureTime < PRESSURE_INTERVAL_MS) return;
+  if (now - lastPressureTime < PRESSURE_INTERVAL_MS)
+    return;
   lastPressureTime = now;
 
   int raw = analogRead(PRESSURE_PIN);
   float voltage = raw * (ADC_REF_VOLTAGE / 1023.0f);
 
-  // Keep your original working calibration, but output in Pascals:
-  // kPa = (voltage - 0.14) * (10.0 / 4.7)
-  float pressureKPa = (voltage - 0.14f) * (10.0f / 4.7f);
-  if (pressureKPa < 0) pressureKPa = 0;
+  // Use calibrated zero offset instead of hardcoded 0.14
+  // MPX5010DP: kPa = (voltage - Vzero) * (10.0 / 4.7)
+  float pressureKPa = (voltage - pressureZeroVoltage) * (10.0f / 4.7f);
+  if (pressureKPa < 0)
+    pressureKPa = 0;
   pressurePa = pressureKPa * 1000.0f;
 }
 
 void updateThermocoupleOnDemand() {
   unsigned long now = millis();
-  if (now - lastThermoTime < TC_INTERVAL_MS) return;
+  if (now - lastThermoTime < TC_INTERVAL_MS)
+    return;
   lastThermoTime = now;
   temperatureC = thermocouple.readCelsius();
 }
@@ -160,7 +186,8 @@ void stopExperiment() {
 }
 
 void updateMosfet() {
-  if (!mosfetArmed || mosfetDone) return;
+  if (!mosfetArmed || mosfetDone)
+    return;
 
   unsigned long now = millis();
   unsigned long elapsed = now - experimentT0;
@@ -177,7 +204,8 @@ void updateMosfet() {
 }
 
 unsigned long tMs() {
-  // If START never happened, experimentT0==0 and this is "since boot" which is OK for debugging.
+  // If START never happened, experimentT0==0 and this is "since boot" which is
+  // OK for debugging.
   return millis() - experimentT0;
 }
 
@@ -190,7 +218,8 @@ bool cmdEqualsIgnoreCase(const char *a, const char *b) {
   while (*a && *b) {
     char ca = (char)tolower((unsigned char)*a);
     char cb = (char)tolower((unsigned char)*b);
-    if (ca != cb) return false;
+    if (ca != cb)
+      return false;
     a++;
     b++;
   }
@@ -201,6 +230,13 @@ void handleCommand(const char *cmd) {
   // Uppercase compare without allocating
   if (cmdEqualsIgnoreCase(cmd, "PING")) {
     printOk("PONG");
+    return;
+  }
+
+  if (cmdEqualsIgnoreCase(cmd, "CALIBRATE")) {
+    calibratePressureSensor();
+    Serial.print("OK CALIB ");
+    Serial.println(pressureZeroVoltage, 4);
     return;
   }
 
@@ -260,10 +296,12 @@ void handleCommand(const char *cmd) {
 void pumpSerial() {
   while (Serial.available() > 0) {
     char c = (char)Serial.read();
-    if (c == '\r') continue;
+    if (c == '\r')
+      continue;
     if (c == '\n') {
       cmdBuf[cmdLen] = '\0';
-      if (cmdLen > 0) handleCommand(cmdBuf);
+      if (cmdLen > 0)
+        handleCommand(cmdBuf);
       cmdLen = 0;
       continue;
     }
@@ -287,13 +325,17 @@ void setup() {
   initTachometer();
   pinMode(PRESSURE_PIN, INPUT);
 
+  // Auto-calibrate pressure sensor at startup (assumes zero pressure now)
+  calibratePressureSensor();
+
   // Default time base: "since boot" until START is received.
   experimentT0 = 0;
   lastRPMTime = 0;
   lastPressureTime = 0;
   lastThermoTime = 0;
 
-  printOk("READY");
+  Serial.print("OK READY CALIB_V=");
+  Serial.println(pressureZeroVoltage, 4);
 }
 
 void loop() {

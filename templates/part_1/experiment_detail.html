@@ -72,8 +72,34 @@
           </div>
         </div>
 
-        <div class="mt-5 rounded-2xl border border-slate-200 bg-white p-3">
-          <canvas id="chart" class="h-72 w-full"></canvas>
+        <!-- Three separate charts -->
+        <div class="mt-5 grid gap-4">
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="inline-block w-3 h-3 rounded-sm" style="background:#0d9488"></span>
+              <span class="text-xs font-semibold text-slate-700">Температура, °C</span>
+              <span class="ml-auto text-[11px] text-slate-400">20–100 / 0–800 °C</span>
+            </div>
+            <canvas id="chartTemp" class="w-full" style="height:180px"></canvas>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="inline-block w-3 h-3 rounded-sm" style="background:#f97316"></span>
+              <span class="text-xs font-semibold text-slate-700">ΔP, Pa</span>
+              <span class="ml-auto text-[11px] text-slate-400">0 – 50 / 500 Pa</span>
+            </div>
+            <canvas id="chartPressure" class="w-full" style="height:180px"></canvas>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="inline-block w-3 h-3 rounded-sm" style="background:#3b82f6"></span>
+              <span class="text-xs font-semibold text-slate-700">RPM</span>
+              <span class="ml-auto text-[11px] text-slate-400">0 – 2k / 4k</span>
+            </div>
+            <canvas id="chartRPM" class="w-full" style="height:180px"></canvas>
+          </div>
         </div>
 
         <div class="mt-4 grid gap-3 sm:grid-cols-4">
@@ -158,8 +184,13 @@
     const commandUrl = "{% url 'experiment_command_api' experiment_id=experiment.id %}";
     const testConnUrl = "{% url 'experiment_test_connection_api' experiment_id=experiment.id %}";
 
-    const chart = document.getElementById("chart");
-    const ctx = chart.getContext("2d");
+    /* ── Three canvases ── */
+    const canvasTemp     = document.getElementById("chartTemp");
+    const canvasPressure = document.getElementById("chartPressure");
+    const canvasRPM      = document.getElementById("chartRPM");
+    const ctxTemp     = canvasTemp.getContext("2d");
+    const ctxPressure = canvasPressure.getContext("2d");
+    const ctxRPM      = canvasRPM.getContext("2d");
 
     const metricSecond = document.getElementById("metricSecond");
     const metricTemp = document.getElementById("metricTemp");
@@ -211,141 +242,161 @@
       setTimeout(() => toast.classList.add("hidden"), 2500);
     }
 
-    function resizeCanvasToCSS() {
-      const rect = chart.getBoundingClientRect();
+    /* ── Generic chart helpers ── */
+
+    function syncCanvasDPR(canvas, context) {
+      const rect = canvas.getBoundingClientRect();
       const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const w = Math.max(320, Math.floor(rect.width));
-      const h = Math.max(240, Math.floor(rect.height));
-      if (chart.width !== Math.floor(w * dpr) || chart.height !== Math.floor(h * dpr)) {
-        chart.width = Math.floor(w * dpr);
-        chart.height = Math.floor(h * dpr);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const w = Math.max(200, Math.floor(rect.width));
+      const h = Math.max(100, Math.floor(rect.height));
+      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+        canvas.width  = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
     }
 
-    function clearChart() {
-      resizeCanvasToCSS();
-      const rect = chart.getBoundingClientRect();
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "12px ui-sans-serif, system-ui";
-      ctx.fillText("Немає даних. Очікування кадрів...", 14, 24);
-    }
-
-    function drawChart(frames) {
-      resizeCanvasToCSS();
-      const rect = chart.getBoundingClientRect();
+    /**
+     * Draw a single-parameter chart on the given canvas.
+     *
+     * @param {HTMLCanvasElement} canvas
+     * @param {CanvasRenderingContext2D} context
+     * @param {Array} frames        - array of frame objects
+     * @param {Function} valueFn    - (frame) => number — extracts the Y value
+     * @param {number} yMin         - fixed Y-axis minimum
+     * @param {number} yMax         - fixed Y-axis maximum
+     * @param {number} yTicks       - number of tick intervals (e.g. 5 means 6 labels)
+     * @param {string} lineColor    - CSS color of the data line
+     * @param {string} unit         - unit label for Y axis ticks
+     */
+    function drawSingleChart(canvas, context, frames, valueFn, yMin, yMax, yTicks, lineColor, unit) {
+      syncCanvasDPR(canvas, context);
+      const rect = canvas.getBoundingClientRect();
       const W = rect.width;
       const H = rect.height;
-      ctx.clearRect(0, 0, W, H);
+      context.clearRect(0, 0, W, H);
 
+      const padL = 52;   // left padding for Y labels
+      const padR = 12;
+      const padT = 10;
+      const padB = 22;   // bottom for X labels
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      // If no data, show placeholder
       if (!frames || frames.length < 2) {
-        clearChart();
+        context.fillStyle = "#94a3b8";
+        context.font = "12px ui-sans-serif, system-ui";
+        context.fillText("Немає даних…", padL + 8, padT + 20);
         return;
       }
 
-      const pad = 36;
-      const plotW = W - pad * 2;
-      const plotH = H - pad * 2;
-
       const xs = frames.map(f => f.second);
-      const ts = frames.map(f => f.temperature);
-      const ps = frames.map(f => f.dif_pressure);
-      const rs = frames.map(f => f.rpm || 0);
-
       const xMin = Math.min(...xs);
       const xMax = Math.max(...xs);
+      const xRange = xMax - xMin || 1;
 
-      const tMin = Math.min(...ts);
-      const tMax = Math.max(...ts);
+      const xScale = (v) => padL + plotW * ((v - xMin) / xRange);
+      const yScale = (v) => padT + plotH * (1 - ((v - yMin) / (yMax - yMin || 1)));
 
-      const pMin = Math.min(...ps);
-      const pMax = Math.max(...ps);
+      // Horizontal grid + Y labels
+      context.font = "10px ui-sans-serif, system-ui";
+      context.textAlign = "right";
+      context.textBaseline = "middle";
+      for (let i = 0; i <= yTicks; i++) {
+        const val = yMin + (yMax - yMin) * (i / yTicks);
+        const y = yScale(val);
 
-      const rMin = Math.min(...rs);
-      const rMax = Math.max(...rs);
+        context.strokeStyle = "#e2e8f0";
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(padL, y);
+        context.lineTo(padL + plotW, y);
+        context.stroke();
 
-      const xScale = (x) => pad + (plotW * ((x - xMin) / (xMax - xMin || 1)));
-      const tScale = (y) => pad + (plotH * (1 - ((y - tMin) / (tMax - tMin || 1))));
-      const pScale = (y) => pad + (plotH * (1 - ((y - pMin) / (pMax - pMin || 1))));
-      const rScale = (y) => pad + (plotH * (1 - ((y - rMin) / (rMax - rMin || 1))));
+        context.fillStyle = "#64748b";
+        let label;
+        if (yMax >= 1000) {
+          label = Math.round(val).toLocaleString();
+        } else {
+          label = val.toFixed(val === Math.round(val) ? 0 : 1);
+        }
+        context.fillText(label, padL - 6, y);
+      }
 
-      // Grid
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= 4; i++) {
-        const y = pad + (plotH * (i / 4));
-        ctx.beginPath();
-        ctx.moveTo(pad, y);
-        ctx.lineTo(pad + plotW, y);
-        ctx.stroke();
+      // X axis labels (a few time ticks)
+      context.textAlign = "center";
+      context.textBaseline = "top";
+      const xTickCount = Math.min(6, frames.length - 1);
+      for (let i = 0; i <= xTickCount; i++) {
+        const val = xMin + xRange * (i / xTickCount);
+        const x = xScale(val);
+        context.fillStyle = "#64748b";
+        context.fillText(val.toFixed(1) + "s", x, padT + plotH + 4);
       }
 
       // Axes
-      ctx.strokeStyle = "#cbd5e1";
-      ctx.beginPath();
-      ctx.moveTo(pad, pad);
-      ctx.lineTo(pad, pad + plotH);
-      ctx.lineTo(pad + plotW, pad + plotH);
-      ctx.stroke();
+      context.strokeStyle = "#cbd5e1";
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(padL, padT);
+      context.lineTo(padL, padT + plotH);
+      context.lineTo(padL + plotW, padT + plotH);
+      context.stroke();
 
-      // Temp line
-      ctx.strokeStyle = "#0d9488";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
+      // Data line
+      context.strokeStyle = lineColor;
+      context.lineWidth = 2;
+      context.lineJoin = "round";
+      context.beginPath();
       frames.forEach((f, i) => {
         const x = xScale(f.second);
-        const y = tScale(f.temperature);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        const v = valueFn(f);
+        // Clamp to fixed range
+        const clamped = Math.max(yMin, Math.min(yMax, v));
+        const y = yScale(clamped);
+        if (i === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
       });
-      ctx.stroke();
+      context.stroke();
 
-      // Pressure line
-      ctx.strokeStyle = "#f97316";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      frames.forEach((f, i) => {
-        const x = xScale(f.second);
-        const y = pScale(f.dif_pressure);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+      context.textAlign = "left";
+    }
+
+    function drawAllCharts(frames) {
+      // Two-step scale: use a small range initially, switch to full range
+      // if any value exceeds the low threshold.
+      const maxTemp = (!frames || !frames.length) ? 0 : Math.max(...frames.map(f => f.temperature));
+      const maxP    = (!frames || !frames.length) ? 0 : Math.max(...frames.map(f => f.dif_pressure));
+      const maxRPM  = (!frames || !frames.length) ? 0 : Math.max(...frames.map(f => f.rpm || 0));
+
+      const tempY    = maxTemp > 100 ? 800 : 100;
+      const tempYMin = maxTemp > 100 ? 0   : 20;
+      const pressY = maxP   > 50   ? 500  : 50;
+      const rpmY   = maxRPM > 2000 ? 4000 : 2000;
+
+      drawSingleChart(canvasTemp,     ctxTemp,     frames, f => f.temperature,    tempYMin, tempY, tempY <= 100 ? 4 : 8, "#0d9488", "°C");
+      drawSingleChart(canvasPressure, ctxPressure, frames, f => f.dif_pressure,   0, pressY, pressY <= 50 ? 5 : 5, "#f97316", "Pa");
+      drawSingleChart(canvasRPM,      ctxRPM,      frames, f => (f.rpm || 0),     0, rpmY,   rpmY <= 2000 ? 4 : 8, "#3b82f6", "");
+    }
+
+    function clearAllCharts() {
+      [canvasTemp, canvasPressure, canvasRPM].forEach((c, idx) => {
+        const cx = [ctxTemp, ctxPressure, ctxRPM][idx];
+        syncCanvasDPR(c, cx);
+        const rect = c.getBoundingClientRect();
+        cx.clearRect(0, 0, rect.width, rect.height);
+        cx.fillStyle = "#94a3b8";
+        cx.font = "12px ui-sans-serif, system-ui";
+        cx.fillText("Немає даних. Очікування кадрів…", 14, 24);
       });
-      ctx.stroke();
-
-      // RPM line
-      ctx.strokeStyle = "#3b82f6";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      frames.forEach((f, i) => {
-        const x = xScale(f.second);
-        const y = rScale(f.rpm || 0);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.stroke();
-
-      // Legend
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "12px ui-sans-serif, system-ui";
-      ctx.fillText("Temp", pad, 16);
-      ctx.fillStyle = "#0d9488";
-      ctx.fillRect(pad + 42, 8, 10, 10);
-      ctx.fillStyle = "#0f172a";
-      ctx.fillText("ΔP", pad + 62, 16);
-      ctx.fillStyle = "#f97316";
-      ctx.fillRect(pad + 84, 8, 10, 10);
-      ctx.fillStyle = "#0f172a";
-      ctx.fillText("RPM", pad + 104, 16);
-      ctx.fillStyle = "#3b82f6";
-      ctx.fillRect(pad + 134, 8, 10, 10);
     }
 
     async function refresh() {
       try {
         const [sumResp, framesResp] = await Promise.all([
           fetch(summaryUrl, { headers: { "Accept": "application/json" } }),
-          fetch(framesUrl + "?limit=300", { headers: { "Accept": "application/json" } }),
+          fetch(framesUrl + "?limit=500", { headers: { "Accept": "application/json" } }),
         ]);
         const sum = await sumResp.json();
         const fr = await framesResp.json();
@@ -369,7 +420,7 @@
           liveHint.textContent = "Очікування даних...";
         }
 
-        drawChart(fr.frames);
+        drawAllCharts(fr.frames);
       } catch (e) {
         // ignore transient network errors in UI-only mode
       }
@@ -379,7 +430,7 @@
       auto = on;
       btnAutoRefresh.innerHTML = `<i class="fa-solid fa-rotate"></i> Auto: ${auto ? "ON" : "OFF"}`;
       if (timer) clearInterval(timer);
-      timer = auto ? setInterval(refresh, 1500) : null;
+      timer = auto ? setInterval(refresh, 500) : null;
     }
 
     btnAutoRefresh.addEventListener("click", () => setAuto(!auto));
@@ -439,11 +490,10 @@
     });
 
     window.addEventListener("resize", () => {
-      // Redraw with latest cached frames by pulling again (cheap enough here).
       refresh();
     });
 
-    clearChart();
+    clearAllCharts();
     setStartStopState(isRunning);
     setAuto(true);
     refresh();
