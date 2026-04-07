@@ -37,6 +37,9 @@ class Experiment(models.Model):
     serial_port = models.CharField(max_length=128, blank=True, default="")
     baud_rate = models.PositiveIntegerField(default=115200)
 
+    # Колір для візуальної відзнаки
+    color = models.CharField(max_length=7, default="#0d9488")
+
     class Meta:
         # Проєкт вже має міграції з опечаткою Experement, тому тримаємо існуючу назву таблиці.
         # Це дозволяє перейменувати клас в Python без "перетягування" таблиці в БД.

@@ -43,7 +43,9 @@ const unsigned long RPM_INTERVAL_MS = 500;
 // --- MPX5010DP differential pressure sensor ---
 const byte PRESSURE_PIN = A0;
 const float ADC_REF_VOLTAGE = 5.0;
+const float PRESSURE_SENSITIVITY = 0.45f; // V/kPa for MPX5010 (5.0V * 0.09)
 const unsigned long PRESSURE_INTERVAL_MS = 50;
+const float PRESSURE_FILTER_ALPHA = 0.2f; // Smoother readings (0.0 to 1.0)
 
 // --- Pressure calibration (auto-zero at startup) ---
 const int CALIB_SAMPLES = 50;
@@ -144,12 +146,15 @@ void updatePressureOnDemand() {
   int raw = analogRead(PRESSURE_PIN);
   float voltage = raw * (ADC_REF_VOLTAGE / 1023.0f);
 
-  // Use calibrated zero offset instead of hardcoded 0.14
-  // MPX5010DP: kPa = (voltage - Vzero) * (10.0 / 4.7)
-  float pressureKPa = (voltage - pressureZeroVoltage) * (10.0f / 4.7f);
-  if (pressureKPa < 0)
-    pressureKPa = 0;
-  pressurePa = pressureKPa * 1000.0f;
+  // Convert to kPa using sensitivity 0.45 V/kPa (for 5V supply)
+  float instantKPa = (voltage - pressureZeroVoltage) / PRESSURE_SENSITIVITY;
+  float instantPa = instantKPa * 1000.0f;
+
+  // Exponential smoothing filter to reduce noise (low pass filter)
+  pressurePa = (instantPa * PRESSURE_FILTER_ALPHA) + (pressurePa * (1.0f - PRESSURE_FILTER_ALPHA));
+
+  if (pressurePa < 0)
+    pressurePa = 0;
 }
 
 void updateThermocoupleOnDemand() {

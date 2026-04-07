@@ -17,6 +17,11 @@ urlpatterns = [
         name="experiment_action",
     ),
     path(
+        "experiments/<int:experiment_id>/delete/",
+        views.experiment_delete,
+        name="experiment_delete",
+    ),
+    path(
         "api/experiments/<int:experiment_id>/frames/batch/",
         views.frame_batch_ingest,
         name="frame_batch_ingest",

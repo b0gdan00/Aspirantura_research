@@ -92,6 +92,13 @@ def experiment_action(request, experiment_id: int):
     return JsonResponse({"status": "error", "error": "Unknown action."}, status=400)
 
 
+@require_POST
+def experiment_delete(request, experiment_id: int):
+    experiment = get_object_or_404(Experiment, pk=experiment_id)
+    experiment.delete()
+    return redirect("experiments_list")
+
+
 @require_GET
 def experiment_summary_api(request, experiment_id: int):
     experiment = get_object_or_404(Experiment, pk=experiment_id)
@@ -137,16 +144,15 @@ def experiment_summary_api(request, experiment_id: int):
 def experiment_frames_api(request, experiment_id: int):
     experiment = get_object_or_404(Experiment, pk=experiment_id)
     try:
-        limit = int(request.GET.get("limit", "200"))
+        limit = int(request.GET.get("limit", "500"))
     except ValueError:
-        limit = 200
-    limit = max(1, min(limit, 2000))
+        limit = 500
 
-    frames = list(
-        Frame.objects.filter(experiment=experiment)
-        .order_by("-second", "-id")[:limit]
-        .values("second", "temperature", "dif_pressure", "rpm")
-    )
+    qs = Frame.objects.filter(experiment=experiment).order_by("-second", "-id")
+    if limit > 0:
+        qs = qs[:limit]
+
+    frames = list(qs.values("second", "temperature", "dif_pressure", "rpm"))
     frames.reverse()
 
     return JsonResponse({"status": "ok", "frames": frames})

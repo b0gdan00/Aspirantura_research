@@ -56,6 +56,23 @@
           {% endif %}
         </div>
 
+        <div class="grid gap-2">
+          <label class="text-sm font-semibold text-slate-800" for="{{ form.color.id_for_label }}">Колір експерименту</label>
+          <div class="flex items-center gap-3">
+            <input
+              id="{{ form.color.id_for_label }}"
+              name="{{ form.color.html_name }}"
+              value="{{ form.color.value|default_if_none:'#0d9488' }}"
+              type="color"
+              class="h-10 w-16 cursor-pointer rounded-lg border border-slate-200 p-1"
+            />
+            <span class="text-xs text-slate-500">Оберіть колір для позначки експерименту в списку</span>
+          </div>
+          {% if form.color.errors %}
+            <div class="text-sm text-rose-700">{{ form.color.errors|striptags }}</div>
+          {% endif %}
+        </div>
+
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="grid gap-2">
             <label class="text-sm font-semibold text-slate-800" for="{{ form.serial_port.id_for_label }}">Serial port</label>
