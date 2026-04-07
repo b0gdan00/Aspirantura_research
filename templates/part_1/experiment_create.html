@@ -57,16 +57,20 @@
         </div>
 
         <div class="grid gap-2">
-          <label class="text-sm font-semibold text-slate-800" for="{{ form.color.id_for_label }}">Колір експерименту</label>
-          <div class="flex items-center gap-3">
-            <input
-              id="{{ form.color.id_for_label }}"
-              name="{{ form.color.html_name }}"
-              value="{{ form.color.value|default_if_none:'#0d9488' }}"
-              type="color"
-              class="h-10 w-16 cursor-pointer rounded-lg border border-slate-200 p-1"
-            />
-            <span class="text-xs text-slate-500">Оберіть колір для позначки експерименту в списку</span>
+          <label class="text-sm font-semibold text-slate-800">Колір експерименту</label>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <input type="hidden" name="{{ form.color.html_name }}" id="id_{{ form.color.html_name }}" value="{{ form.color.value|default:'#0ea5e9' }}">
+            {% for hex in color_choices %}
+              <button
+                type="button"
+                class="color-create-swatch h-7 w-7 rounded-full border-2 transition hover:scale-110 focus:outline-none{% if form.color.value == hex or forloop.first and not form.color.value %} border-slate-800 ring-2 ring-offset-1 ring-slate-400{% else %} border-transparent{% endif %}"
+                style="background-color: {{ hex }}"
+                data-color="{{ hex }}"
+                title="{{ hex }}"
+                onclick="document.getElementById('id_{{ form.color.html_name }}').value = this.dataset.color; document.querySelectorAll('.color-create-swatch').forEach(s => { s.classList.remove('border-slate-800', 'ring-2', 'ring-offset-1', 'ring-slate-400'); s.classList.add('border-transparent'); }); this.classList.remove('border-transparent'); this.classList.add('border-slate-800', 'ring-2', 'ring-offset-1', 'ring-slate-400');"
+              ></button>
+            {% endfor %}
+            <span class="ml-2 text-xs text-slate-500">Оберіть колір</span>
           </div>
           {% if form.color.errors %}
             <div class="text-sm text-rose-700">{{ form.color.errors|striptags }}</div>

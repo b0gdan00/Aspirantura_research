@@ -702,13 +702,13 @@
     
     refresh();
 
-    // --- Color picker auto-save ---
-    const colorPicker = document.getElementById("colorPicker");
+    // --- Color swatch auto-save ---
     const colorStatus = document.getElementById("colorStatus");
-    if (colorPicker) {
-      colorPicker.addEventListener("change", function () {
+    document.querySelectorAll(".color-swatch").forEach((btn) => {
+      btn.addEventListener("click", function () {
+        const color = this.dataset.color;
         const formData = new FormData();
-        formData.append("color", this.value);
+        formData.append("color", color);
         formData.append("csrfmiddlewaretoken", "{{ csrf_token }}");
         colorStatus.textContent = "…";
         fetch("{% url 'experiment_update_color' experiment_id=experiment.id %}", {
@@ -718,22 +718,28 @@
           .then((r) => r.json())
           .then((data) => {
             if (data.status === "ok") {
-              colorStatus.textContent = "Збережено!";
+              // Update active swatch styling
+              document.querySelectorAll(".color-swatch").forEach((s) => {
+                s.className = s.className
+                  .replace(/border-slate-800/g, "border-transparent")
+                  .replace(/ring-2 ring-offset-1 ring-slate-400/g, "");
+              });
+              this.classList.remove("border-transparent");
+              this.classList.add("border-slate-800", "ring-2", "ring-offset-1", "ring-slate-400");
+              colorStatus.textContent = "✓";
               colorStatus.classList.add("text-emerald-600");
               setTimeout(() => {
                 colorStatus.textContent = "Колір";
                 colorStatus.classList.remove("text-emerald-600");
-              }, 1500);
+              }, 1200);
             } else {
               colorStatus.textContent = "Помилка";
-              colorStatus.classList.add("text-rose-600");
             }
           })
           .catch(() => {
             colorStatus.textContent = "Помилка";
-            colorStatus.classList.add("text-rose-600");
           });
       });
-    }
+    });
   </script>
 {% endblock %}

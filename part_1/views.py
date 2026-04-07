@@ -12,6 +12,12 @@ from .telemetry import ensure_poller_running, get_session, stop_poller
 from .forms import ExperimentCreateForm
 from .models import Experiment, Frame
 
+COLOR_CHOICES = [
+    "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", 
+    "#d946ef", "#ec4899", "#f43f5e", "#f97316", 
+    "#eab308", "#22c55e", "#14b8a6", "#64748b"
+]
+
 
 def empty_page(request):
     return redirect("experiments_list")
@@ -36,7 +42,10 @@ def experiment_create(request):
     else:
         form = ExperimentCreateForm()
 
-    return render(request, "part_1/experiment_create.html", {"form": form})
+    return render(request, "part_1/experiment_create.html", {
+        "form": form,
+        "color_choices": COLOR_CHOICES,
+    })
 
 
 @require_GET
@@ -45,7 +54,10 @@ def experiment_detail(request, experiment_id: int):
     return render(
         request,
         "part_1/experiment_detail.html",
-        {"experiment": experiment},
+        {
+            "experiment": experiment,
+            "color_choices": COLOR_CHOICES,
+        },
     )
 
 
