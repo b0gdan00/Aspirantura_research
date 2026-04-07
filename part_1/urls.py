@@ -22,6 +22,11 @@ urlpatterns = [
         name="experiment_delete",
     ),
     path(
+        "experiments/<int:experiment_id>/update-color/",
+        views.experiment_update_color,
+        name="experiment_update_color",
+    ),
+    path(
         "api/experiments/<int:experiment_id>/frames/batch/",
         views.frame_batch_ingest,
         name="frame_batch_ingest",

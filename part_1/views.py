@@ -99,6 +99,17 @@ def experiment_delete(request, experiment_id: int):
     return redirect("experiments_list")
 
 
+@require_POST
+def experiment_update_color(request, experiment_id: int):
+    experiment = get_object_or_404(Experiment, pk=experiment_id)
+    color = request.POST.get("color", "").strip()
+    if color and len(color) == 7 and color.startswith("#"):
+        experiment.color = color
+        experiment.save()
+        return JsonResponse({"status": "ok", "color": experiment.color})
+    return JsonResponse({"status": "error", "error": "Invalid color."}, status=400)
+
+
 @require_GET
 def experiment_summary_api(request, experiment_id: int):
     experiment = get_object_or_404(Experiment, pk=experiment_id)

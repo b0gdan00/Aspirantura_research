@@ -33,6 +33,36 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5" id="colorSwatches">
+            <span class="text-xs text-slate-500 mr-1" id="colorStatus">Колір</span>
+            {% for hex in color_choices %}
+              <button
+                type="button"
+                class="color-swatch h-6 w-6 rounded-full border-2 transition hover:scale-110 focus:outline-none{% if experiment.color == hex %} border-slate-800 ring-2 ring-offset-1 ring-slate-400{% else %} border-transparent{% endif %}"
+                style="background-color: {{ hex }}"
+                data-color="{{ hex }}"
+                title="{{ hex }}"
+              ></button>
+            {% endfor %}
+          </div>
+
+          <form
+            method="post"
+            action="{% url 'experiment_delete' experiment_id=experiment.id %}"
+            onsubmit="return confirm('Ви впевнені, що хочете ВИДАЛИТИ цей експеримент та всі його дані? Цю дію неможливо скасувати.');"
+            class="inline"
+          >
+            {% csrf_token %}
+            <button
+              type="submit"
+              class="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 transition"
+              title="Видалити експеримент"
+            >
+              <i class="fa-solid fa-trash-can"></i>
+              Видалити
+            </button>
+          </form>
+
           <a
             href="{% url 'experiments_list' %}"
             class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -671,5 +701,39 @@
     setAuto(initialStatus !== "finished" && initialStatus !== "aborted");
     
     refresh();
+
+    // --- Color picker auto-save ---
+    const colorPicker = document.getElementById("colorPicker");
+    const colorStatus = document.getElementById("colorStatus");
+    if (colorPicker) {
+      colorPicker.addEventListener("change", function () {
+        const formData = new FormData();
+        formData.append("color", this.value);
+        formData.append("csrfmiddlewaretoken", "{{ csrf_token }}");
+        colorStatus.textContent = "…";
+        fetch("{% url 'experiment_update_color' experiment_id=experiment.id %}", {
+          method: "POST",
+          body: formData,
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.status === "ok") {
+              colorStatus.textContent = "Збережено!";
+              colorStatus.classList.add("text-emerald-600");
+              setTimeout(() => {
+                colorStatus.textContent = "Колір";
+                colorStatus.classList.remove("text-emerald-600");
+              }, 1500);
+            } else {
+              colorStatus.textContent = "Помилка";
+              colorStatus.classList.add("text-rose-600");
+            }
+          })
+          .catch(() => {
+            colorStatus.textContent = "Помилка";
+            colorStatus.classList.add("text-rose-600");
+          });
+      });
+    }
   </script>
 {% endblock %}
